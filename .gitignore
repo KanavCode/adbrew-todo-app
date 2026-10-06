@@ -1,0 +1,27 @@
+# Docker volumes (docker-compose mounts these from ${ADBREW_CODEBASE_PATH})
+src/db/
+src/tmp/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+venv/
+.venv/
+
+# Local env files (real values stay out of git)
+.env
+.env.*
+!.env.example
+
+# Node / React (see also src/app/.gitignore)
+node_modules/
+.eslintcache
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
