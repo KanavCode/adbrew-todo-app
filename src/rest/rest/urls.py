@@ -1,21 +1,20 @@
 """rest URL Configuration
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/3.1/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+Routes are wired together here (composition root): this is where the concrete MongoDB-backed
+repository is created and handed to the view.
 """
-from django.urls import path, include
+from django.urls import re_path
+
+from .db import get_database
+from .repositories import TodoRepository
 from .views import TodoListView
 
 urlpatterns = [
-    path('todos/', TodoListView.as_view(), name='signup'),
+    # `/?` accepts both `/todos` and `/todos/`: with APPEND_SLASH, a POST to `/todos` cannot be
+    # redirected and Django would raise an error instead.
+    re_path(
+        r'^todos/?$',
+        TodoListView.as_view(repository=TodoRepository(get_database())),
+        name='todo-list',
+    ),
 ]
