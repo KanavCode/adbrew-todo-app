@@ -1,7 +1,8 @@
 # ToDo App
 
 A small full-stack ToDo application: a **React** frontend, a **Django REST** API and **MongoDB**,
-all started with Docker Compose.
+all started with Docker Compose. You can add todos, mark them as completed, edit them inline and
+delete them; everything is stored in MongoDB.
 
 | Part     | Tech                                  | URL                         |
 |----------|---------------------------------------|-----------------------------|
@@ -26,8 +27,9 @@ The **first start takes a few minutes**: the `app` container runs `yarn install`
 dev server comes up. Follow its progress with `docker logs -f app`; it is ready when you see
 `Compiled successfully!`. Then open http://localhost:3000.
 
-If you only have the older standalone `docker-compose` (v1), use that command instead of
-`docker compose`; the `docker-compose.yml` keeps its original v2 file format for that reason.
+This needs Docker Compose v2 (the `docker compose` command that ships with Docker Desktop).
+On Apple Silicon (M-series) Macs the containers run as `linux/amd64` under emulation, because
+the MongoDB 4.4 packages used here are not published for arm64; the first build is slower there.
 
 Useful commands:
 
@@ -103,39 +105,51 @@ The original setup no longer builds as-is, so a few things were fixed:
 6. **`.dockerignore` added.** The build only needs `requirements.txt`, but the whole repository
    (including `node_modules` and the Mongo data files, hundreds of MB) was being sent to the Docker
    daemon on every build.
+7. **`platform: linux/amd64` on every service.** The MongoDB 4.4 packages are x86-64 only, so on
+   arm64 hosts (Apple Silicon) the image build would fail. Pinning the platform makes Docker
+   emulate amd64 there; on amd64 machines it changes nothing.
 
 ## API
 
-Base URL: `http://localhost:8000`. The API speaks JSON only. `/todos` and `/todos/` are equivalent.
+Base URL: `http://localhost:8000`. The API speaks JSON only. A trailing slash is optional
+(`/todos` and `/todos/` are equivalent).
 
-### `GET /todos`
-
-Returns all todos, oldest first.
+A todo looks like this:
 
 ```json
-200 OK
-[
-  { "id": "6ac4c8d97373e7ac5d2129d3", "description": "Learn Docker", "created_at": "2026-10-06T10:09:29.689000Z" }
-]
+{ "id": "6ac4c8d97373e7ac5d2129d3", "description": "Learn Docker", "completed": false, "created_at": "2026-10-06T10:09:29.689000Z" }
 ```
 
-### `POST /todos`
+| Method & path           | Purpose                              | Success                |
+|-------------------------|--------------------------------------|------------------------|
+| `GET /todos`            | List all todos, oldest first         | `200` + array of todos |
+| `POST /todos`           | Create a todo                        | `201` + the new todo   |
+| `PATCH /todos/<id>`     | Change `description` and/or `completed` | `200` + the updated todo |
+| `DELETE /todos/<id>`    | Delete a todo                        | `204`, no body         |
 
-Body: `{ "description": "Learn React" }`. The description is trimmed and must be a non-blank string of
-at most 200 characters. Returns the created todo with `201 Created`.
+The description is trimmed and must be a non-blank string of at most 200 characters.
+`completed` must be a real boolean. `PATCH` is a partial update: send only what changes, and at
+least one of the two fields.
 
 ```bash
 curl -X POST http://localhost:8000/todos \
      -H "Content-Type: application/json" \
      -d '{"description": "Learn React"}'
+
+curl -X PATCH http://localhost:8000/todos/<id> \
+     -H "Content-Type: application/json" \
+     -d '{"completed": true}'
+
+curl -X DELETE http://localhost:8000/todos/<id>
 ```
 
 ### Errors
 
 | Status | When                                                  | Body                                              |
 |--------|-------------------------------------------------------|---------------------------------------------------|
-| 400    | Missing/blank/non-string/too long description, malformed JSON | `{"description": ["This field may not be blank."]}` or `{"detail": "..."}` |
-| 405    | Method other than GET/POST                            | `{"detail": "Method \"DELETE\" not allowed."}`    |
+| 400    | Missing/blank/non-string/too long description, `completed` not a boolean, empty `PATCH`, malformed JSON | `{"description": ["This field may not be blank."]}` or `{"detail": "..."}` |
+| 404    | `PATCH`/`DELETE` of an id that does not exist (or is not a valid id) | `{"detail": "Todo not found."}`      |
+| 405    | Method not supported on that URL                      | `{"detail": "Method \"GET\" not allowed."}`       |
 | 415    | Body is not JSON                                      | `{"detail": "Unsupported media type ..."}`        |
 | 503    | MongoDB is unreachable (answered within ~3 seconds)   | `{"detail": "The todo store is temporarily unavailable. ..."}` |
 
@@ -149,19 +163,19 @@ src/
 ├── rest/                     Django project (the API)
 │   └── rest/
 │       ├── urls.py           routes + wiring: creates the repository and injects it into the view
-│       ├── views.py          TodoListView: HTTP only (validate → call repository → respond)
+│       ├── views.py          TodoListView / TodoDetailView: HTTP only (validate → repository → respond)
 │       ├── validators.py     request validation (plain Python)
 │       ├── repositories.py   TodoRepository: the only code that talks to MongoDB
 │       ├── db.py             MongoDB connection (env config, one shared client, short timeout)
-│       ├── exceptions.py     TodoStorageError (storage layer) and the 503 API exception
+│       ├── exceptions.py     TodoStorageError / TodoNotFound (storage layer) and the 503 API exception
 │       ├── settings.py
 │       └── tests/            backend tests
 └── app/                      React app
     └── src/
         ├── config.js         API base URL, input length limit
-        ├── api/todoApi.js    fetch wrapper: listTodos(), createTodo(), error normalisation
+        ├── api/todoApi.js    fetch wrapper: list / create / update / delete, error normalisation
         ├── hooks/useTodos.js state + data fetching for the list
-        ├── components/       TodoForm, TodoList
+        ├── components/       TodoForm, TodoList, TodoItem (one row: toggle, inline edit, delete)
         └── App.js            composition
 ```
 
@@ -175,8 +189,14 @@ src/
   Tests inject an in-memory fake, and changing the storage engine means writing one new class.
 - **No Django ORM.** As required, models, serializers and SQLite are not used (`DATABASES = {}`);
   all data is read and written with `pymongo`.
-- **Centralised error handling.** The repository wraps driver errors in `TodoStorageError`; the
-  view's `handle_exception` turns that into a 503 in one place instead of a `try/except` per method.
+- **Centralised error handling.** The repository wraps driver errors in `TodoStorageError` and
+  reports a missing todo as `TodoNotFound`; a shared base view's `handle_exception` turns them into
+  503 and 404 in one place instead of a `try/except` per method.
+- **Extensible by design.** Adding update/delete only needed new repository methods, one more view
+  and a validator; the existing layers were not rewritten.
+- **Safe ids.** A malformed id cannot match any document, so it is answered with the same JSON 404
+  as an unknown id (never a 500 or an HTML error page).
+- **Backwards compatible data.** Todos stored before `completed` existed are read as not completed.
 - **Fail fast.** The Mongo client uses a 3 s server-selection timeout, so an outage produces a quick
   503 instead of a 30 s hang, and the API recovers by itself when Mongo comes back.
 - **Mongo → JSON.** `ObjectId` is exposed as a string `id`; timestamps are timezone-aware UTC,
@@ -185,9 +205,11 @@ src/
 **Frontend**
 
 - **Hooks only**, no class components. `useTodos` owns the data (`todos`, `isLoading`, `error`,
-  `addTodo`, `refresh`); components only render.
-- **The list is reloaded from the backend after each successful submit**, so what is on screen is
-  always what is stored.
+  `addTodo`, `changeTodo`, `removeTodo`, `refresh`); components only render.
+- **The list is reloaded from the backend after each successful change** (add, toggle, edit,
+  delete), so what is on screen is always what is stored.
+- **Per-row state.** Each `TodoItem` tracks its own busy/error state: its controls are disabled while
+  its request is in flight, and a failure is shown next to that row without affecting the others.
 - **One error type.** `todoApi.js` converts network failures, validation errors, 503s and non-JSON
   error pages into an `Error` with a readable message; the UI just shows `error.message`.
 - **Race safety.** The hook ignores responses from outdated requests and from unmounted components.
@@ -199,10 +221,10 @@ src/
 Both suites run inside the containers (so the exact same environment as the app):
 
 ```bash
-# Backend: 21 tests (validator, view with a fake repository, repository against the real MongoDB)
+# Backend: 42 tests (validators, views with a fake repository, repository against the real MongoDB)
 docker exec api bash -c "cd /src/rest && python manage.py test"
 
-# Frontend: 25 tests (API layer, form, list, and the whole App with the network mocked)
+# Frontend: 52 tests (API layer, form, list, todo row, and the whole App with the network mocked)
 docker exec -e CI=true app bash -c "cd /src/app && yarn test --watchAll=false"
 ```
 
@@ -223,7 +245,7 @@ touched. The frontend suite can take a minute or two on Windows/macOS because of
 ## Possible improvements
 
 - Pagination and an index on `created_at` once lists grow (the API currently returns all todos).
-- Update/delete/complete endpoints, and request cancellation in the frontend with `AbortController`.
+- Request cancellation in the frontend with `AbortController`, and optimistic updates for toggling.
 - Use the official `mongo` image for the database instead of installing MongoDB in the shared image,
   and a multi-stage production build (static React build behind nginx, gunicorn for Django).
 - Expose limits such as the maximum description length through the API instead of duplicating them.
