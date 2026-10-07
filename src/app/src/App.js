@@ -4,13 +4,20 @@ import { TodoList } from './components/TodoList';
 import { useTodos } from './hooks/useTodos';
 
 export function App() {
-  const { todos, isLoading, error, addTodo, refresh } = useTodos();
+  const { todos, isLoading, error, addTodo, changeTodo, removeTodo, refresh } = useTodos();
 
   return (
     <div className="App">
       <section>
         <h1>List of TODOs</h1>
-        <TodoList todos={todos} isLoading={isLoading} error={error} onRetry={refresh} />
+        <TodoList
+          todos={todos}
+          isLoading={isLoading}
+          error={error}
+          onRetry={refresh}
+          onUpdate={changeTodo}
+          onDelete={removeTodo}
+        />
       </section>
       <section>
         <h1>Create a ToDo</h1>

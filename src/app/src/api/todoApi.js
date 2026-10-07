@@ -59,3 +59,16 @@ export function createTodo(description) {
     body: JSON.stringify({ description }),
   });
 }
+
+/** PATCH /todos/:id: `changes` is `{ description }` and/or `{ completed }`. Resolves to the todo. */
+export function updateTodo(id, changes) {
+  return request(`${TODOS_PATH}/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(changes),
+  });
+}
+
+/** DELETE /todos/:id: the API answers 204 with no body, so this resolves to `null`. */
+export function deleteTodo(id) {
+  return request(`${TODOS_PATH}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}

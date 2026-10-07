@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createTodo, listTodos } from '../api/todoApi';
+import { createTodo, deleteTodo, listTodos, updateTodo } from '../api/todoApi';
 
 export function useTodos() {
   const [todos, setTodos] = useState([]);
@@ -47,5 +47,23 @@ export function useTodos() {
     [refresh]
   );
 
-  return { todos, isLoading, error, addTodo, refresh };
+  // Like addTodo: these reject when the change fails (so the caller can show the error next to
+  // the item), and reload the list from the backend when it succeeds.
+  const changeTodo = useCallback(
+    async (id, changes) => {
+      await updateTodo(id, changes);
+      await refresh();
+    },
+    [refresh]
+  );
+
+  const removeTodo = useCallback(
+    async (id) => {
+      await deleteTodo(id);
+      await refresh();
+    },
+    [refresh]
+  );
+
+  return { todos, isLoading, error, addTodo, changeTodo, removeTodo, refresh };
 }

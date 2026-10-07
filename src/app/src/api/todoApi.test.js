@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '../config';
-import { createTodo, listTodos } from './todoApi';
+import { createTodo, deleteTodo, listTodos, updateTodo } from './todoApi';
 
 // CRA resets mocks before every test, so each test installs its own fetch behaviour.
 function mockFetchResponse({ ok = true, status = 200, body }) {
@@ -48,6 +48,60 @@ describe('createTodo', () => {
         headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
       })
     );
+  });
+});
+
+describe('updateTodo', () => {
+  it('PATCHes the changes to /todos/:id and returns the updated todo', async () => {
+    const updated = { id: 'abc', description: 'Learn Docker', completed: true };
+    mockFetchResponse({ body: updated });
+
+    await expect(updateTodo('abc', { completed: true })).resolves.toEqual(updated);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE_URL}/todos/abc`,
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ completed: true }),
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      })
+    );
+  });
+
+  it('encodes the id so it cannot change the URL path', async () => {
+    mockFetchResponse({ body: {} });
+
+    await updateTodo('a/b?x', { completed: true });
+
+    expect(fetch).toHaveBeenCalledWith(`${API_BASE_URL}/todos/a%2Fb%3Fx`, expect.any(Object));
+  });
+
+  it('rejects with the API message when the todo does not exist', async () => {
+    mockFetchResponse({ ok: false, status: 404, body: { detail: 'Todo not found.' } });
+
+    await expect(updateTodo('abc', { completed: true })).rejects.toMatchObject({
+      message: 'Todo not found.',
+      status: 404,
+    });
+  });
+});
+
+describe('deleteTodo', () => {
+  it('sends DELETE to /todos/:id and resolves on an empty 204 response', async () => {
+    mockFetchResponse({ status: 204, body: undefined }); // no body, so json() rejects
+
+    await expect(deleteTodo('abc')).resolves.toBeNull();
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE_URL}/todos/abc`,
+      expect.objectContaining({ method: 'DELETE' })
+    );
+  });
+
+  it('rejects when the todo is already gone', async () => {
+    mockFetchResponse({ ok: false, status: 404, body: { detail: 'Todo not found.' } });
+
+    await expect(deleteTodo('abc')).rejects.toMatchObject({ message: 'Todo not found.', status: 404 });
   });
 });
 

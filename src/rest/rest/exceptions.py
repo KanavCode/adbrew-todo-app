@@ -9,6 +9,10 @@ class TodoStorageError(Exception):
     """
 
 
+class TodoNotFound(Exception):
+    """No todo exists with the requested id (including ids that are not valid ObjectIds)."""
+
+
 class ServiceUnavailable(APIException):
     """HTTP 503, the API-level translation of a storage failure."""
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
