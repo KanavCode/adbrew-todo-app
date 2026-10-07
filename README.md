@@ -1,68 +1,229 @@
-# NOTE: DO NOT FORK THIS REPOSITORY. CLONE AND SETUP A STANDALONE REPOSITORY.
+# ToDo App
 
-# Adbrew Test!
+A small full-stack ToDo application: a **React** frontend, a **Django REST** API and **MongoDB**,
+all started with Docker Compose.
 
-Hello! This test is designed to specifically test your Python, React and web development skills. The task is unconventional and has a slightly contrived setup on purpose and requires you to learn basic concepts of Docker on the fly. 
+| Part     | Tech                                  | URL                         |
+|----------|---------------------------------------|-----------------------------|
+| Frontend | React 17 (hooks only), react-scripts 4 | http://localhost:3000       |
+| API      | Django 3 + Django REST Framework, `pymongo` | http://localhost:8000/todos |
+| Database | MongoDB 4.4                           | `localhost:27017`           |
 
+## Quick start
 
-# Structure
+Requirements: [Docker](https://docs.docker.com/get-docker/) with Docker Compose. Nothing else
+needs to be installed.
 
-This repository includes code for a Docker setup with 3 containers:
-* App: This is the React dev server and runs on http://localhost:3000. The code for this resides in src/app directory.
-* API: This is the backend container that run a Django instance on http://localhost:8000. 
-* Mongo: This is a DB instance running on port 27017. Django views already have code written to connect to this instance of Mongo.
+```bash
+git clone https://github.com/KanavCode/adbrew-todo-app.git
+cd adbrew-todo-app
 
-We highly recommend you go through the setup in `Dockerfile` and `docker-compose.yml`. If you are able to understand and explain the setup, that will be a huge differentiator.
-
-# Setup
-1. Clone this repository (DO NOT FORK)
+docker compose build     # first time only (or after changing the Dockerfile); takes a few minutes
+docker compose up -d
 ```
-git clone https://github.com/adbrew/test.git
-```
-2. Change into the cloned directory and set the environment variable for the code path. Replace `path_to_repository` appropriately.
-```
-export ADBREW_CODEBASE_PATH="{path_to_repository}/test/src"
-```
-3. Build container (you only need to build containers for the first time or if you change image definition, i.e., `Dockerfile`). This step will take a good amount of time.
-```
-docker-compose build
-```
-4. Once the build is completed, start the containers:
-```
-docker-compose up -d
-```
-5. Once complete, `docker ps` should output something like this:
-```
-CONTAINER ID   IMAGE               COMMAND                  CREATED         STATUS         PORTS                      NAMES
-e445be7efa61   adbrew_test_api     "bash -c 'cd /src/re…"   3 minutes ago   Up 2 seconds   0.0.0.0:8000->8000/tcp     api
-0fd203f12d8a   adbrew_test_app     "bash -c 'cd /src/ap…"   4 minutes ago   Up 3 minutes   0.0.0.0:3000->3000/tcp     app
-884cb9296791   adbrew_test_mongo   "/usr/bin/mongod --b…"   4 minutes ago   Up 3 minutes   0.0.0.0:27017->27017/tcp   mongo
-```
-6. Check that you are able to access http://localhost:3000 and http://localhost:8000/todos
-7. If the containers in #5 or #6 are not up, we would like you to use your debugging skills to figure out the issue. Only reach out to us if you've exhausted all possible options. The `app` container may take a good amount of time to start since it will download all package dependencies.
 
-# Tips
-1. Once containers are up and running, you can view container logs by executing `docker logs -f --tail=100 {container_name}` Replace `container_name` with `app` or `api`(output of `docker ps`)
-2. You can enter the container and inspect it by executing `docker exec -it {container_name} bash` Replace `{container_name}` with `app` or `api` (output of `docker ps`)
-3. Shut all containers using `docker-compose down`
-4. Restart a container using `docker restart {container_name}`
+The **first start takes a few minutes**: the `app` container runs `yarn install` before the
+dev server comes up. Follow its progress with `docker logs -f app`; it is ready when you see
+`Compiled successfully!`. Then open http://localhost:3000.
 
+If you only have the older standalone `docker-compose` (v1), use that command instead of
+`docker compose`; the `docker-compose.yml` keeps its original v2 file format for that reason.
 
-# Task
+Useful commands:
 
-When you run `localhost:3000`, you would see 2 things:
-1. A form with a TODO description textbox and a submit button. On this form submission, the app should interact with the Django backend (`POST http://localhost:8000/todos`) and create a TODO in MongoDB.
-2. A list with hardcoded TODOs. This should be changed to reflect TODOs in the backend (`GET http://localhost:8000/todos`). 
-3. When the form is submitted, the TODO list should refresh again and fetch latest list of TODOs from MongoDB.
+```bash
+docker ps                         # api, app and mongo should all be "Up"
+docker logs -f --tail=100 api     # follow a container's logs (api | app | mongo)
+docker exec -it api bash          # open a shell inside a container
+docker restart api                # restart one container
+docker compose down               # stop everything (data is kept, see "Data" below)
+```
 
-# Instructions [IMPORTANT] 
-1. All React code should be implemented using [React hooks](https://reactjs.org/docs/hooks-intro.html) and should not use traditional stateful React components and component lifecycle method.
-2. Do not use Django's model, serializers or SQLite DB. Persist and retrieve all data from the mongo instance. A `db` instance is already present in `views.py`.
-3. Do not bypass the Docker setup. Submissions that do not have proper docker setup will be rejected.
-4. We are looking for developers who have strong fundamentals and can ramp up fast. We expect you to learn and grasp basic React Hooks/Mongo/Docker concepts on the fly.
-5. Do not fork this repository or submit your solution as a PR since this is a public repo and there are other candidates taking the same test. Send us a link to your repo privately.
-6. If you are able to complete the test, we will have a live walkthrough of your code and ask questions to check your understanding.
-7. The code for the actual solution is pretty easy. The code quality in your solution should be production-ready - error handling, abstractions, well-maintainable and modular code. If you're not aware, we recommend reading a bit about software design principles and applying them (both JS and Python). Here are some reading resources to get you started:
-   * https://kinsta.com/blog/python-object-oriented-programming/
-   * https://realpython.com/solid-principles-python/
-   * https://www.toptal.com/python/python-design-patterns
+> **Where is the code mounted from?** `docker-compose.yml` mounts `./src` into the containers.
+> If your checkout lives elsewhere you can still set `ADBREW_CODEBASE_PATH` to the absolute path of
+> the `src` directory (`export ADBREW_CODEBASE_PATH=...` in bash,
+> `$env:ADBREW_CODEBASE_PATH="..."` in PowerShell); it defaults to `./src`.
+
+## How the Docker setup works
+
+```
+ browser ──► localhost:3000 ──► [ app ]  React dev server (yarn start)
+    │
+    └──────► localhost:8000 ──► [ api ]  Django runserver ──► mongo:27017 ──► [ mongo ]  mongod
+                                                  (Docker network, resolved by service name)
+```
+
+**One image, three containers.** The `Dockerfile` builds a single image containing Python, Node/Yarn
+and MongoDB. `docker-compose.yml` starts it three times with a different `command` each, so each
+container plays one role:
+
+| Service | Command                                      | Role                      |
+|---------|----------------------------------------------|---------------------------|
+| `api`   | `python manage.py runserver 0.0.0.0:8000`    | Django REST API           |
+| `app`   | `yarn install && yarn start`                 | React development server  |
+| `mongo` | `mongod --bind_ip 0.0.0.0`                   | Database                  |
+
+(`0.0.0.0` makes a server listen on all interfaces; with the default `127.0.0.1` it would not be
+reachable from outside its container.)
+
+**Bind mounts, not copies.** The source code is *mounted* into the containers (`./src` → `/src`)
+instead of being baked into the image. The image only contains dependencies (it copies just
+`src/requirements.txt`), so editing a file on the host takes effect immediately in the running
+container, and Django's auto-reloader / the React dev server pick it up. The image only needs
+rebuilding when the `Dockerfile` or the Python requirements change.
+
+**Networking.** Compose puts the containers on one network where each service is reachable by its
+name. The `api` therefore connects to Mongo at `mongo:27017`, built from the `MONGO_HOST` and
+`MONGO_PORT` environment variables defined in the `Dockerfile`. The *browser* is outside that
+network, so the frontend calls the API through the port published on the host
+(`http://localhost:8000`), not `http://api:8000`. CORS is enabled in the API for that reason: the
+page (`:3000`) and the API (`:8000`) are different origins.
+
+**Data.** MongoDB's files live in `./src/db` (mounted to `/data/db`), so todos survive
+`docker compose down` and container restarts. To start from an empty database, run
+`docker compose down` and delete `src/db`. That folder is git-ignored.
+
+### Changes made to the provided Docker setup
+
+The original setup no longer builds as-is, so a few things were fixed:
+
+1. **Base image pinned to `python:3.8-bullseye`.** The floating `python:3.8` tag now points at
+   Debian 12 (bookworm), which has no `libssl1.1` (needed by the MongoDB 4.4 packages) and ships a
+   Node version too new for `react-scripts 4` (webpack 4 fails with `ERR_OSSL_EVP_UNSUPPORTED`).
+2. **apt pointed at `archive.debian.org`.** Debian 11 is end-of-life and its security repository was
+   removed from the main mirror (404s during `apt-get install`). The archive's `Release` files are
+   expired, hence `Acquire::Check-Valid-Until "false"`.
+3. **`easy_install pip` replaced by `pip --version`.** `easy_install` was removed from recent
+   `setuptools`, and the Python image already ships `pip`.
+4. **`CHOKIDAR_USEPOLLING=true` on the `app` service.** On Docker Desktop (Windows/macOS) file-change
+   events do not cross bind mounts, so the React dev server stopped noticing edits. Polling fixes
+   hot reload.
+5. **`ADBREW_CODEBASE_PATH` defaults to `./src`** so no environment variable has to be exported
+   before running Compose (the original `export ...` command is bash-only).
+6. **`.dockerignore` added.** The build only needs `requirements.txt`, but the whole repository
+   (including `node_modules` and the Mongo data files, hundreds of MB) was being sent to the Docker
+   daemon on every build.
+
+## API
+
+Base URL: `http://localhost:8000`. The API speaks JSON only. `/todos` and `/todos/` are equivalent.
+
+### `GET /todos`
+
+Returns all todos, oldest first.
+
+```json
+200 OK
+[
+  { "id": "6ac4c8d97373e7ac5d2129d3", "description": "Learn Docker", "created_at": "2026-10-06T10:09:29.689000Z" }
+]
+```
+
+### `POST /todos`
+
+Body: `{ "description": "Learn React" }`. The description is trimmed and must be a non-blank string of
+at most 200 characters. Returns the created todo with `201 Created`.
+
+```bash
+curl -X POST http://localhost:8000/todos \
+     -H "Content-Type: application/json" \
+     -d '{"description": "Learn React"}'
+```
+
+### Errors
+
+| Status | When                                                  | Body                                              |
+|--------|-------------------------------------------------------|---------------------------------------------------|
+| 400    | Missing/blank/non-string/too long description, malformed JSON | `{"description": ["This field may not be blank."]}` or `{"detail": "..."}` |
+| 405    | Method other than GET/POST                            | `{"detail": "Method \"DELETE\" not allowed."}`    |
+| 415    | Body is not JSON                                      | `{"detail": "Unsupported media type ..."}`        |
+| 503    | MongoDB is unreachable (answered within ~3 seconds)   | `{"detail": "The todo store is temporarily unavailable. ..."}` |
+
+Storage errors are logged on the server; the client only ever sees the generic 503 message.
+
+## Project structure
+
+```
+src/
+├── requirements.txt          Python dependencies (installed into the image)
+├── rest/                     Django project (the API)
+│   └── rest/
+│       ├── urls.py           routes + wiring: creates the repository and injects it into the view
+│       ├── views.py          TodoListView: HTTP only (validate → call repository → respond)
+│       ├── validators.py     request validation (plain Python)
+│       ├── repositories.py   TodoRepository: the only code that talks to MongoDB
+│       ├── db.py             MongoDB connection (env config, one shared client, short timeout)
+│       ├── exceptions.py     TodoStorageError (storage layer) and the 503 API exception
+│       ├── settings.py
+│       └── tests/            backend tests
+└── app/                      React app
+    └── src/
+        ├── config.js         API base URL, input length limit
+        ├── api/todoApi.js    fetch wrapper: listTodos(), createTodo(), error normalisation
+        ├── hooks/useTodos.js state + data fetching for the list
+        ├── components/       TodoForm, TodoList
+        └── App.js            composition
+```
+
+## Design notes
+
+**Backend**
+
+- **Layers with one job each.** The view knows HTTP, the repository knows MongoDB, the validator
+  knows the rules. None of them knows about the others' internals.
+- **Dependency injection.** The view receives its repository through `as_view(repository=...)`.
+  Tests inject an in-memory fake, and changing the storage engine means writing one new class.
+- **No Django ORM.** As required, models, serializers and SQLite are not used (`DATABASES = {}`);
+  all data is read and written with `pymongo`.
+- **Centralised error handling.** The repository wraps driver errors in `TodoStorageError`; the
+  view's `handle_exception` turns that into a 503 in one place instead of a `try/except` per method.
+- **Fail fast.** The Mongo client uses a 3 s server-selection timeout, so an outage produces a quick
+  503 instead of a 30 s hang, and the API recovers by itself when Mongo comes back.
+- **Mongo → JSON.** `ObjectId` is exposed as a string `id`; timestamps are timezone-aware UTC,
+  truncated to milliseconds (MongoDB's precision) so `POST` and `GET` return identical values.
+
+**Frontend**
+
+- **Hooks only**, no class components. `useTodos` owns the data (`todos`, `isLoading`, `error`,
+  `addTodo`, `refresh`); components only render.
+- **The list is reloaded from the backend after each successful submit**, so what is on screen is
+  always what is stored.
+- **One error type.** `todoApi.js` converts network failures, validation errors, 503s and non-JSON
+  error pages into an `Error` with a readable message; the UI just shows `error.message`.
+- **Race safety.** The hook ignores responses from outdated requests and from unmounted components.
+- **Good form behaviour.** Input is trimmed, the button is disabled while empty or submitting, typed
+  text is kept when a submit fails, and errors are announced with `role="alert"`.
+
+## Tests
+
+Both suites run inside the containers (so the exact same environment as the app):
+
+```bash
+# Backend: 21 tests (validator, view with a fake repository, repository against the real MongoDB)
+docker exec api bash -c "cd /src/rest && python manage.py test"
+
+# Frontend: 25 tests (API layer, form, list, and the whole App with the network mocked)
+docker exec -e CI=true app bash -c "cd /src/app && yarn test --watchAll=false"
+```
+
+The repository tests use a throw-away database that is dropped afterwards, so your todos are not
+touched. The frontend suite can take a minute or two on Windows/macOS because of the bind mount.
+
+## Troubleshooting
+
+- **`localhost:3000` does not load right after `up`:** `yarn install` is still running; check
+  `docker logs -f app`.
+- **Port already in use (3000, 8000 or 27017):** stop whatever is using it, or the previous stack
+  with `docker compose down`.
+- **Changes to the React code do not show up:** make sure `CHOKIDAR_USEPOLLING=true` is present on the
+  `app` service and recreate it with `docker compose up -d app`.
+- **API returns 503:** MongoDB is not reachable. Check `docker ps` / `docker logs mongo`.
+- **Build fails while running `apt-get`:** see "Changes made to the provided Docker setup" above.
+
+## Possible improvements
+
+- Pagination and an index on `created_at` once lists grow (the API currently returns all todos).
+- Update/delete/complete endpoints, and request cancellation in the frontend with `AbortController`.
+- Use the official `mongo` image for the database instead of installing MongoDB in the shared image,
+  and a multi-stage production build (static React build behind nginx, gunicorn for Django).
+- Expose limits such as the maximum description length through the API instead of duplicating them.

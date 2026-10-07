@@ -1,0 +1,5 @@
+.git
+src/db
+src/tmp
+src/app/node_modules
+**/__pycache__

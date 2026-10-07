@@ -9,17 +9,19 @@ services:
     links:
       - mongo
     volumes:
-      - ${ADBREW_CODEBASE_PATH}/tmp:/tmp
-      - ${ADBREW_CODEBASE_PATH}:/src
+      - ${ADBREW_CODEBASE_PATH:-./src}/tmp:/tmp
+      - ${ADBREW_CODEBASE_PATH:-./src}:/src
 
   app:
     build: .
     container_name: app
     command: bash -c "cd /src/app && yarn install && yarn start"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
     ports:
       - "3000:3000"
     volumes:
-      - ${ADBREW_CODEBASE_PATH}:/src
+      - ${ADBREW_CODEBASE_PATH:-./src}:/src
 
   mongo:
     build: .
@@ -28,7 +30,7 @@ services:
     ports:
       - "27017:27017"
     volumes:
-      - ${ADBREW_CODEBASE_PATH}/db/:/data/db
+      - ${ADBREW_CODEBASE_PATH:-./src}/db/:/data/db
     command: /usr/bin/mongod --bind_ip 0.0.0.0
 
     
